@@ -1931,6 +1931,40 @@ export async function runEmbeddedAttempt(
           `embedded run prompt start: runId=${params.runId} sessionId=${params.sessionId} ` +
             routingSummary,
         );
+        {
+          const historyMessages = activeSession.messages;
+          const sessionSummary = summarizeSessionContext(historyMessages);
+          const systemPromptChars = systemPromptText?.length ?? 0;
+          const extraSystemChars = params.extraSystemPrompt?.length ?? 0;
+          const promptChars = effectivePrompt.length;
+          log.info(
+            `llm-payload: provider=${params.provider} model=${params.modelId} ` +
+              `systemPrompt=${systemPromptChars}chars extraSystem=${extraSystemChars}chars ` +
+              `history=${historyMessages.length}msgs/${sessionSummary.totalTextChars}chars [${sessionSummary.roleCounts}] ` +
+              `prompt=${promptChars}chars sessionId=${params.sessionId}`,
+            {
+              consoleMessage:
+                `llm-payload: ${params.provider}/${params.modelId} | sys=${systemPromptChars}c extra=${extraSystemChars}c ` +
+                `hist=${historyMessages.length}msg/${sessionSummary.totalTextChars}c prompt=${promptChars}c`,
+              llmPayload: {
+                provider: params.provider,
+                modelId: params.modelId,
+                runId: params.runId,
+                sessionId: params.sessionId,
+                systemPromptChars,
+                systemPrompt: systemPromptText,
+                extraSystemPromptChars: extraSystemChars,
+                extraSystemPrompt: params.extraSystemPrompt ?? null,
+                historyMessageCount: historyMessages.length,
+                historyChars: sessionSummary.totalTextChars,
+                historyRoles: sessionSummary.roleCounts,
+                promptChars,
+                prompt: effectivePrompt,
+              },
+            },
+          );
+        }
+
         cacheTrace?.recordStage("prompt:before", {
           prompt: effectivePrompt,
           messages: activeSession.messages,
@@ -2553,6 +2587,47 @@ export async function runEmbeddedAttempt(
           .catch((err) => {
             log.warn(`llm_output hook failed: ${String(err)}`);
           });
+      }
+
+      {
+        const responseText = assistantTexts.join("");
+        const responseChars = responseText.length;
+        const toolNames = toolMetasNormalized.map((t) => t.toolName);
+        const toolCount = toolNames.length;
+        const uniqueTools = [...new Set(toolNames)];
+        const toolsSummary = uniqueTools.length
+          ? uniqueTools
+              .map((name) => {
+                const count = toolNames.filter((n) => n === name).length;
+                return count > 1 ? `${name}(x${count})` : name;
+              })
+              .join(", ")
+          : "none";
+        log.info(
+          `llm-response: provider=${params.provider} model=${params.modelId} ` +
+            `responseChars=${responseChars} tools=${toolCount} [${toolsSummary}] ` +
+            `aborted=${aborted} timedOut=${timedOut} runId=${params.runId} sessionId=${params.sessionId}`,
+          {
+            consoleMessage:
+              `llm-response: ${params.provider}/${params.modelId} | response=${responseChars}c ` +
+              `tools=${toolCount} [${toolsSummary}] aborted=${aborted} timedOut=${timedOut}`,
+            llmResponse: {
+              provider: params.provider,
+              modelId: params.modelId,
+              runId: params.runId,
+              sessionId: params.sessionId,
+              responseChars,
+              responseText,
+              toolCount,
+              tools: toolMetasNormalized,
+              toolsSummary,
+              aborted,
+              timedOut,
+              promptError: promptError ?? null,
+              lastToolError: getLastToolError?.() ?? null,
+            },
+          },
+        );
       }
 
       const observedReplayMetadata = buildAttemptReplayMetadata({
