@@ -37,6 +37,7 @@ import {
   formatReasoningMessage,
   promoteThinkingTagsToBlocks,
 } from "./pi-embedded-utils.js";
+import { normalizeProviderId } from "./provider-id.js";
 
 function shouldSuppressAssistantVisibleOutput(message: AgentMessage | undefined): boolean {
   return resolveAssistantMessagePhase(message) === "commentary";
@@ -764,6 +765,26 @@ export function handleMessageEnd(
     addedDuringMessage,
     chunkerHasBuffered,
   });
+
+  // Local reasoning models (ollama/lmstudio/vllm) sometimes put their answer
+  // in reasoning_content instead of content, leaving the reply empty. Promote
+  // thinking to text so the reply isn't lost. Cloud providers (Anthropic/OpenAI)
+  // use thinking for genuine internal reasoning — never promote for them.
+  const stillEmpty = ctx.state.assistantTexts.length === ctx.state.assistantTextBaseline;
+  if (stillEmpty && !finalAssistantText && ctx.params.provider) {
+    const normalizedProvider = normalizeProviderId(ctx.params.provider);
+    if (
+      normalizedProvider === "ollama" ||
+      normalizedProvider === "lmstudio" ||
+      normalizedProvider === "vllm"
+    ) {
+      const thinkingForPromotion = rawThinking || extractAssistantThinking(assistantMessage);
+      if (thinkingForPromotion) {
+        ctx.state.assistantTexts.push(thinkingForPromotion);
+        ctx.state.assistantTextBaseline = ctx.state.assistantTexts.length;
+      }
+    }
+  }
 
   const onBlockReply = ctx.params.onBlockReply;
   const shouldEmitReasoning = Boolean(

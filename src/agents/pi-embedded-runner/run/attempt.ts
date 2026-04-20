@@ -114,6 +114,7 @@ import {
   findClientToolNameConflicts,
   toClientToolDefinitions,
 } from "../../pi-tool-definition-adapter.js";
+import { wrapToolWithCallLogging } from "../../pi-tools.call-log.js";
 import { createOpenClawCodingTools, resolveToolLoopDetectionConfig } from "../../pi-tools.js";
 import {
   resolveEffectiveToolPolicy,
@@ -1518,7 +1519,7 @@ export async function runEmbeddedAttempt(
       const hookRunner = getGlobalHookRunner();
 
       const { customTools } = splitSdkTools({
-        tools: effectiveTools,
+        tools: effectiveTools.map((tool) => wrapToolWithCallLogging(tool)),
         sandboxEnabled: !!sandbox?.enabled,
       });
 
@@ -2317,6 +2318,7 @@ export async function runEmbeddedAttempt(
           sessionKey: sandboxSessionKey,
           sessionId: params.sessionId,
           agentId: sessionAgentId,
+          provider: params.provider,
           builtinToolNames,
           internalEvents: params.internalEvents,
         }),
