@@ -1642,6 +1642,25 @@ export async function runReplyAgent(params: {
       if (silentFallbackFailurePayload) {
         return silentFallbackFailurePayload;
       }
+      emitAgentEvent({
+        runId,
+        sessionKey,
+        stream: "lifecycle",
+        data: {
+          type: "agent.empty_reply",
+          sessionId: followupRun.run.sessionId,
+          provider: providerUsed,
+          model: modelUsed,
+          stage: "raw_payloads",
+          durationMs: Date.now() - runStartedAt,
+          promptPreview: commandBody.slice(0, 200),
+        },
+      });
+      if (!isHeartbeat) {
+        return returnWithQueuedFollowupDrain({
+          text: "I wasn't able to formulate a response. Please try again or rephrase your request.",
+        });
+      }
       return returnWithQueuedFollowupDrain(undefined);
     }
 
@@ -1678,6 +1697,21 @@ export async function runReplyAgent(params: {
       if (silentFallbackFailurePayload) {
         return silentFallbackFailurePayload;
       }
+      // Content was already delivered via block streaming or messaging tools — intentional silence.
+      emitAgentEvent({
+        runId,
+        sessionKey,
+        stream: "lifecycle",
+        data: {
+          type: "agent.empty_reply",
+          sessionId: followupRun.run.sessionId,
+          provider: providerUsed,
+          model: modelUsed,
+          stage: "filtered_payloads",
+          rawPayloadCount: payloadArray.length,
+          durationMs: Date.now() - runStartedAt,
+        },
+      });
       return returnWithQueuedFollowupDrain(undefined);
     }
 
