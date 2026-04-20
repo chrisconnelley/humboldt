@@ -134,6 +134,18 @@ export type DiagnosticHeartbeatEvent = DiagnosticBaseEvent & {
   queued: number;
 };
 
+export type DiagnosticEmptyReplyEvent = DiagnosticBaseEvent & {
+  type: "agent.empty_reply";
+  sessionKey?: string;
+  sessionId?: string;
+  provider?: string;
+  model?: string;
+  stage: "raw_payloads" | "filtered_payloads";
+  rawPayloadCount?: number;
+  durationMs?: number;
+  promptPreview?: string;
+};
+
 export type DiagnosticToolLoopEvent = DiagnosticBaseEvent & {
   type: "tool.loop";
   sessionKey?: string;
@@ -165,7 +177,8 @@ export type DiagnosticEventPayload =
   | DiagnosticLaneDequeueEvent
   | DiagnosticRunAttemptEvent
   | DiagnosticHeartbeatEvent
-  | DiagnosticToolLoopEvent;
+  | DiagnosticToolLoopEvent
+  | DiagnosticEmptyReplyEvent;
 
 export type DiagnosticEventInput = DiagnosticEventPayload extends infer Event
   ? Event extends DiagnosticEventPayload

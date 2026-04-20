@@ -24,6 +24,7 @@ import {
   extractAssistantVisibleText,
   formatReasoningMessage,
 } from "../../pi-embedded-utils.js";
+import { normalizeProviderId } from "../../provider-id.js";
 import { isExecLikeToolName, type ToolErrorSummary } from "../../tool-error-summary.js";
 import { isLikelyMutatingToolName } from "../../tool-mutation.js";
 
@@ -217,9 +218,21 @@ export function buildEmbeddedRunPayloads(params: {
     replyItems.push({ text: reasoningText, isReasoning: true });
   }
 
-  const fallbackAnswerText = params.lastAssistant
+  // When a local reasoning model puts its answer in reasoning_content instead
+  // of content, promote thinking to text so the reply isn't empty. Cloud
+  // models (Anthropic/OpenAI) use thinking for genuine internal reasoning.
+  let fallbackAnswerText = params.lastAssistant
     ? extractAssistantVisibleText(params.lastAssistant)
     : "";
+  if (!fallbackAnswerText && params.lastAssistant && params.provider) {
+    const normalized = normalizeProviderId(params.provider);
+    if (normalized === "ollama" || normalized === "lmstudio" || normalized === "vllm") {
+      const thinking = extractAssistantThinking(params.lastAssistant);
+      if (thinking) {
+        fallbackAnswerText = thinking;
+      }
+    }
+  }
   const shouldSuppressRawErrorText = (text: string) => {
     if (!lastAssistantErrored) {
       return false;

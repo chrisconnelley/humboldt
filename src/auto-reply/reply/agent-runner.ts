@@ -1341,6 +1341,25 @@ export async function runReplyAgent(params: {
     // Otherwise, a late typing trigger (e.g. from a tool callback) can outlive the run and
     // keep the typing indicator stuck.
     if (payloadArray.length === 0) {
+      emitDiagnosticEvent({
+        type: "agent.empty_reply",
+        sessionKey,
+        sessionId: followupRun.run.sessionId,
+        provider: providerUsed,
+        model: modelUsed,
+        stage: "raw_payloads",
+        durationMs: Date.now() - runStartedAt,
+        promptPreview: commandBody.slice(0, 200),
+      });
+      if (!isHeartbeat) {
+        return finalizeWithFollowup(
+          {
+            text: "I wasn't able to formulate a response. Please try again or rephrase your request.",
+          },
+          queueKey,
+          runFollowupTurn,
+        );
+      }
       return finalizeWithFollowup(undefined, queueKey, runFollowupTurn);
     }
 
@@ -1372,6 +1391,17 @@ export async function runReplyAgent(params: {
     didLogHeartbeatStrip = payloadResult.didLogHeartbeatStrip;
 
     if (replyPayloads.length === 0) {
+      // Content was already delivered via block streaming or messaging tools — intentional silence.
+      emitDiagnosticEvent({
+        type: "agent.empty_reply",
+        sessionKey,
+        sessionId: followupRun.run.sessionId,
+        provider: providerUsed,
+        model: modelUsed,
+        stage: "filtered_payloads",
+        rawPayloadCount: payloadArray.length,
+        durationMs: Date.now() - runStartedAt,
+      });
       return finalizeWithFollowup(undefined, queueKey, runFollowupTurn);
     }
 
