@@ -654,7 +654,6 @@ export function buildAgentSystemPrompt(params: {
     toolLines.push(summary ? `- ${name}: ${summary}` : `- ${name}`);
   }
 
-  const hasGateway = availableTools.has("gateway");
   const readToolName = resolveToolName("read");
   const execToolName = resolveToolName("exec");
   const processToolName = resolveToolName("process");
@@ -766,7 +765,6 @@ export function buildAgentSystemPrompt(params: {
     workspaceDir: params.workspaceDir,
     promptMode,
     toolLines,
-    hasGateway,
     readToolName,
     execToolName,
     processToolName,
@@ -882,32 +880,8 @@ export function buildAgentSystemPrompt(params: {
         fallback: [],
       }),
       ...safetySection,
-      "## OpenClaw CLI Quick Reference",
-      "OpenClaw is controlled via subcommands. Do not invent commands.",
-      "For config changes, use the first-class `gateway` tool (`config.schema.lookup`, `config.get`, `config.patch`, `config.apply`) instead of editing config through exec; the gateway tool hot-reloads config when possible and uses a safe restart only when required.",
-      "Use the `gateway` tool action `restart` for Gateway restarts. Only use CLI service lifecycle commands when the user explicitly asks for them.",
-      "Gateway service lifecycle quick reference:",
-      "- openclaw gateway status",
-      "- openclaw gateway restart",
-      "Operator-only, explicit user request:",
-      "- openclaw gateway start",
-      "- openclaw gateway stop",
-      "Do not chain `openclaw gateway stop` and `openclaw gateway start` as a restart substitute.",
-      "If unsure, ask the user to run `openclaw help` (or `openclaw gateway --help`) and paste the output.",
-      "",
       ...skillsSection,
       ...memorySection,
-      hasGateway && !isMinimal ? "## OpenClaw Self-Update" : "",
-      hasGateway && !isMinimal
-        ? [
-            "Get Updates (self-update) is ONLY allowed when the user explicitly asks for it.",
-            "Do not run config.apply or update.run unless the user explicitly requests an update or config change; if it's not explicit, ask first.",
-            "Use config.schema.lookup with a specific dot path to inspect only the relevant config subtree before making config changes or answering config-field questions; avoid guessing field names/types.",
-            "Actions: config.schema.lookup, config.get, config.patch (partial update, merges with existing), config.apply (validate + write full config), update.run (update deps or git, then restart). Config writes hot-reload when possible and use a safe restart only when required.",
-            "After restart, OpenClaw pings the last active session automatically.",
-          ].join("\n")
-        : "",
-      hasGateway && !isMinimal ? "" : "",
       "",
       params.modelAliasLines && params.modelAliasLines.length > 0 && !isMinimal
         ? "## Model Aliases"
