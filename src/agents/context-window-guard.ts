@@ -2,8 +2,8 @@ import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { resolveProviderEndpoint } from "./provider-attribution.js";
 import { findNormalizedProviderValue } from "./provider-id.js";
 
-export const CONTEXT_WINDOW_HARD_MIN_TOKENS = 4_000;
-export const CONTEXT_WINDOW_WARN_BELOW_TOKENS = 8_000;
+export const CONTEXT_WINDOW_HARD_MIN_TOKENS = 4_096;
+export const CONTEXT_WINDOW_WARN_BELOW_TOKENS = 8_192;
 const CONTEXT_WINDOW_HARD_MIN_RATIO = 0.1;
 const CONTEXT_WINDOW_WARN_BELOW_RATIO = 0.2;
 
