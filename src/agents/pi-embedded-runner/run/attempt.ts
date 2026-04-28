@@ -1743,17 +1743,15 @@ export async function runEmbeddedAttempt(
       // Get hook runner early so it's available when creating tools
       const hookRunner = getGlobalHookRunner();
 
-      // For small-context local providers, strip all description fields from tool
-      // schemas before sending to the LLM. llama.cpp/LM Studio sets n_keep to the
-      // size of the initial prompt including tool JSON, so verbose descriptions push
-      // n_keep above the context window before any history is added.
-      // The system prompt already lists each tool with a short description, so the
-      // model can still call tools correctly without the parameter-level descriptions.
+      // For local providers (LM Studio), strip parameter-level description fields to
+      // reduce n_keep size. llama.cpp sets n_keep to the initial prompt size including
+      // tool JSON, so verbose parameter docs waste context budget.
+      // The function-level description is preserved — small models need it to select
+      // the right tool. Parameter descriptions are redundant given the field names.
       const toolsForSdk =
         params.provider === "lmstudio"
           ? effectiveTools.map((tool) => ({
               ...tool,
-              description: "",
               parameters: stripSchemaDescriptions(
                 tool.parameters as Record<string, unknown>,
               ) as typeof tool.parameters,
