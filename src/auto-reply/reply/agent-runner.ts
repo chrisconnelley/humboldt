@@ -1398,15 +1398,19 @@ export async function runReplyAgent(params: {
     // Otherwise, a late typing trigger (e.g. from a tool callback) can outlive the run and
     // keep the typing indicator stuck.
     if (payloadArray.length === 0) {
-      emitDiagnosticEvent({
-        type: "agent.empty_reply",
+      emitAgentEvent({
+        runId,
         sessionKey,
-        sessionId: followupRun.run.sessionId,
-        provider: providerUsed,
-        model: modelUsed,
-        stage: "raw_payloads",
-        durationMs: Date.now() - runStartedAt,
-        promptPreview: commandBody.slice(0, 200),
+        stream: "lifecycle",
+        data: {
+          type: "agent.empty_reply",
+          sessionId: followupRun.run.sessionId,
+          provider: providerUsed,
+          model: modelUsed,
+          stage: "raw_payloads",
+          durationMs: Date.now() - runStartedAt,
+          promptPreview: commandBody.slice(0, 200),
+        },
       });
       if (!isHeartbeat) {
         return finalizeWithFollowup(
@@ -1450,15 +1454,19 @@ export async function runReplyAgent(params: {
 
     if (replyPayloads.length === 0) {
       // Content was already delivered via block streaming or messaging tools — intentional silence.
-      emitDiagnosticEvent({
-        type: "agent.empty_reply",
+      emitAgentEvent({
+        runId,
         sessionKey,
-        sessionId: followupRun.run.sessionId,
-        provider: providerUsed,
-        model: modelUsed,
-        stage: "filtered_payloads",
-        rawPayloadCount: payloadArray.length,
-        durationMs: Date.now() - runStartedAt,
+        stream: "lifecycle",
+        data: {
+          type: "agent.empty_reply",
+          sessionId: followupRun.run.sessionId,
+          provider: providerUsed,
+          model: modelUsed,
+          stage: "filtered_payloads",
+          rawPayloadCount: payloadArray.length,
+          durationMs: Date.now() - runStartedAt,
+        },
       });
       return finalizeWithFollowup(undefined, queueKey, runFollowupTurn);
     }
