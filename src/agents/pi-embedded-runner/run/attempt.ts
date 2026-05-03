@@ -38,6 +38,7 @@ import { getPluginToolMeta } from "../../../plugins/tools.js";
 import { isAcpSessionKey, isSubagentSessionKey } from "../../../routing/session-key.js";
 import { annotateInterSessionPromptText } from "../../../sessions/input-provenance.js";
 import { normalizeOptionalString } from "../../../shared/string-coerce.js";
+import { extractXmlToolCallPayload } from "../../../shared/text/tool-call-shaped-text.js";
 import {
   buildTrajectoryArtifacts,
   buildTrajectoryRunMetadata,
@@ -2352,6 +2353,7 @@ export async function runEmbeddedAttempt(
         getCompactionCount,
         getLastCompactionTokensAfter,
         getPendingXmlToolCallRetry,
+        getPendingXmlToolCallThinking,
       } = subscription;
 
       const queueHandle: EmbeddedPiQueueHandle & {
@@ -3128,6 +3130,88 @@ export async function runEmbeddedAttempt(
             } else {
               throw err;
             }
+          }
+        }
+
+        // Option B: synthetically execute a tool the model embedded as XML inside reasoning.
+        // Fires when Option A re-prompt also failed to elicit a structured call. Parses the
+        // stored thinking text, executes the matched tool directly, injects a synthetic
+        // tool_use + tool_result pair into the agent state, then calls agent.continue() so
+        // the model can respond to the tool result without another user-level LLM re-prompt.
+        const xmlToolThinking =
+          !promptError && !aborted && !yieldAborted ? getPendingXmlToolCallThinking() : null;
+        if (xmlToolThinking) {
+          const payload = extractXmlToolCallPayload(xmlToolThinking);
+          const tool = payload ? effectiveTools.find((t) => t.name === payload.name) : null;
+          if (tool && payload) {
+            log.warn(
+              `[xml-tool-synthetic] executing '${payload.name}' synthetically runId=${params.runId} sessionId=${params.sessionId}`,
+            );
+            try {
+              const toolCallId = `synthetic-xml-${Date.now()}`;
+              const preparedArgs =
+                typeof tool.prepareArguments === "function"
+                  ? tool.prepareArguments(payload.arguments)
+                  : payload.arguments;
+              const toolExecResult = await tool.execute(
+                toolCallId,
+                preparedArgs as never,
+                runAbortController.signal,
+              );
+              const msgs = activeSession.agent.state.messages;
+              const lastMsg = msgs.at(-1);
+              const syntheticToolCall = {
+                type: "toolCall" as const,
+                id: toolCallId,
+                name: payload.name,
+                arguments: preparedArgs as Record<string, unknown>,
+              };
+              const syntheticToolResult = {
+                role: "toolResult" as const,
+                toolCallId,
+                toolName: payload.name,
+                content: toolExecResult.content,
+                details: toolExecResult.details,
+                isError: false,
+                timestamp: Date.now(),
+              } as unknown as AgentMessage;
+              if (lastMsg && "role" in lastMsg && lastMsg.role === "assistant") {
+                // Patch the trailing assistant message to include the synthetic tool call
+                // block so the tool_result has a matching toolCallId.
+                const patched = {
+                  ...lastMsg,
+                  content: [...(lastMsg as { content: unknown[] }).content, syntheticToolCall],
+                } as AgentMessage;
+                activeSession.agent.state.messages = [
+                  ...msgs.slice(0, -1),
+                  patched,
+                  syntheticToolResult,
+                ];
+              } else {
+                // Unexpected: no trailing assistant message — fall back to text steer
+                log.warn(
+                  `[xml-tool-synthetic] no trailing assistant message to patch; falling back to steer runId=${params.runId}`,
+                );
+                const resultText = toolExecResult.content
+                  .map((c) => ("text" in c ? (c as { text: string }).text : ""))
+                  .join("");
+                await activeSession.steer(`Tool '${payload.name}' result:\n\n${resultText}`);
+              }
+              await abortable(activeSession.agent.continue());
+            } catch (err) {
+              if (isRunnerAbortError(err)) {
+                if (!promptError) {
+                  promptError = err as Error;
+                  promptErrorSource = "prompt";
+                }
+              } else {
+                throw err;
+              }
+            }
+          } else {
+            log.warn(
+              `[xml-tool-synthetic] tool not found: '${payload?.name ?? "unknown"}' — skipping runId=${params.runId}`,
+            );
           }
         }
 

@@ -226,6 +226,32 @@ function detectReactAction(text: string): ToolCallShapedTextDetection | null {
   return { kind: "react_action", toolName: match[1] };
 }
 
+export interface XmlToolCallPayload {
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+/**
+ * Extract a structured `{ name, arguments }` payload from a `<tool_call>...</tool_call>` block.
+ * Returns null if the block is absent, malformed, or the JSON inside is not a valid tool call.
+ */
+export function extractXmlToolCallPayload(text: string): XmlToolCallPayload | null {
+  const match = /<\s*tool_call\b[^>]*>([\s\S]*?)<\/\s*tool_call\s*>/i.exec(text);
+  if (!match?.[1]) return null;
+  try {
+    const parsed: unknown = JSON.parse(match[1].trim());
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const obj = parsed as Record<string, unknown>;
+    const name = typeof obj.name === "string" ? obj.name.trim() : null;
+    if (!name) return null;
+    const rawArgs = obj.arguments ?? obj.args ?? obj.input ?? obj.parameters ?? {};
+    if (typeof rawArgs !== "object" || rawArgs === null || Array.isArray(rawArgs)) return null;
+    return { name, arguments: rawArgs as Record<string, unknown> };
+  } catch {
+    return null;
+  }
+}
+
 export function detectToolCallShapedText(text: string): ToolCallShapedTextDetection | null {
   const trimmed = text.slice(0, MAX_SCAN_CHARS).trim();
   if (!trimmed || !TOOL_TEXT_PREFILTER_RE.test(trimmed)) {

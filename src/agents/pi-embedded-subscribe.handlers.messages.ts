@@ -773,10 +773,11 @@ export function handleMessageEnd(
   // use thinking for genuine internal reasoning — never promote for them.
   //
   // Special case: if the thinking contains a <tool_call> XML block but no
-  // structured tool call was emitted, schedule a re-prompt (Option A) so the
-  // model gets one chance to emit the tool call properly before we fall back
-  // to displaying the raw XML as text.
-  const MAX_XML_TOOL_RETRIES = 1;
+  // structured tool call was emitted, attempt recovery before falling back to
+  // displaying the raw XML as text.
+  //   attempt 0 → Option A: re-prompt asking model to emit a proper structured call
+  //   attempt 1 → Option B: execute the tool synthetically (handled in attempt.ts)
+  //   attempt 2+ → text promotion (give up, show thinking as reply text)
   const stillEmpty = ctx.state.assistantTexts.length === ctx.state.assistantTextBaseline;
   if (stillEmpty && !finalAssistantText && ctx.params.provider) {
     const normalizedProvider = normalizeProviderId(ctx.params.provider);
@@ -788,17 +789,37 @@ export function handleMessageEnd(
       const thinkingForPromotion = rawThinking || extractAssistantThinking(assistantMessage);
       if (thinkingForPromotion) {
         const toolCallDetection = detectToolCallShapedText(thinkingForPromotion);
-        if (toolCallDetection && ctx.state.xmlToolCallRetryCount < MAX_XML_TOOL_RETRIES) {
+        if (toolCallDetection) {
+          const attempt = ctx.state.xmlToolCallRetryCount;
           ctx.state.xmlToolCallRetryCount += 1;
-          ctx.state.pendingXmlToolCallRetry =
-            "Your previous reasoning included a tool call that wasn't emitted as a structured " +
-            "tool call. Please call the tool now using the proper tool call format.";
-          ctx.log.warn("xml-tool-in-thinking: scheduling re-prompt instead of promoting to text", {
-            runId: ctx.params.runId,
-            pattern: toolCallDetection.kind,
-            ...(toolCallDetection.toolName ? { toolName: toolCallDetection.toolName } : {}),
-            retryCount: ctx.state.xmlToolCallRetryCount,
-          });
+          if (attempt === 0) {
+            ctx.state.pendingXmlToolCallRetry =
+              "Your previous reasoning included a tool call that wasn't emitted as a structured " +
+              "tool call. Please call the tool now using the proper tool call format.";
+            ctx.log.warn(
+              "xml-tool-in-thinking: scheduling re-prompt (Option A) instead of promoting to text",
+              {
+                runId: ctx.params.runId,
+                pattern: toolCallDetection.kind,
+                ...(toolCallDetection.toolName ? { toolName: toolCallDetection.toolName } : {}),
+                attempt,
+              },
+            );
+          } else if (attempt === 1) {
+            ctx.state.pendingXmlToolCallThinking = thinkingForPromotion;
+            ctx.log.warn(
+              "xml-tool-in-thinking: scheduling synthetic execution (Option B) instead of promoting to text",
+              {
+                runId: ctx.params.runId,
+                pattern: toolCallDetection.kind,
+                ...(toolCallDetection.toolName ? { toolName: toolCallDetection.toolName } : {}),
+                attempt,
+              },
+            );
+          } else {
+            ctx.state.assistantTexts.push(thinkingForPromotion);
+            ctx.state.assistantTextBaseline = ctx.state.assistantTexts.length;
+          }
         } else {
           ctx.state.assistantTexts.push(thinkingForPromotion);
           ctx.state.assistantTextBaseline = ctx.state.assistantTexts.length;
