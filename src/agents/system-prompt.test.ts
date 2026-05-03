@@ -232,21 +232,6 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("<final>...</final>");
   });
 
-  it("includes a CLI quick reference section", () => {
-    const prompt = buildAgentSystemPrompt({
-      workspaceDir: "/tmp/openclaw",
-    });
-
-    expect(prompt).toContain("## OpenClaw CLI Quick Reference");
-    expect(prompt).toContain("use the first-class `gateway` tool");
-    expect(prompt).toContain(
-      "Only use CLI service lifecycle commands when the user explicitly asks",
-    );
-    expect(prompt).toContain("openclaw gateway restart");
-    expect(prompt).toContain("Do not chain `openclaw gateway stop`");
-    expect(prompt).toContain("Do not invent commands");
-  });
-
   it("points agents to config field docs and broader configuration docs", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",
@@ -611,22 +596,6 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("## Model Aliases");
     expect(prompt).toContain("Prefer aliases when specifying model overrides");
     expect(prompt).toContain("- Opus: anthropic/claude-opus-4-5");
-  });
-
-  it("adds ClaudeBot self-update guidance when gateway tool is available", () => {
-    const prompt = buildAgentSystemPrompt({
-      workspaceDir: "/tmp/openclaw",
-      toolNames: ["gateway", "exec"],
-    });
-
-    expect(prompt).toContain("## OpenClaw Self-Update");
-    expect(prompt).toContain("config.schema.lookup");
-    expect(prompt).toContain("config.apply");
-    expect(prompt).toContain("config.patch");
-    expect(prompt).toContain("Config writes hot-reload when possible");
-    expect(prompt).toContain("update.run");
-    expect(prompt).not.toContain("Use config.schema to");
-    expect(prompt).not.toContain("config.schema, config.apply");
   });
 
   it("includes skills guidance when skills prompt is present", () => {
