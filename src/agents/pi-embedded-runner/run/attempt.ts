@@ -2722,6 +2722,7 @@ export async function runEmbeddedAttempt(
         getUsageTotals,
         getCompactionCount,
         getLastCompactionTokensAfter,
+        getPendingXmlToolCallRetry,
       } = subscription;
       toolSearchCatalogExecutor = async (toolParams) => {
         try {
@@ -3636,6 +3637,29 @@ export async function runEmbeddedAttempt(
             promptError = null;
             promptErrorSource = null;
             handleMidTurnPrecheckRequest(request);
+          }
+        }
+
+        // Option A: re-prompt if model emitted a <tool_call> XML block inside reasoning
+        // instead of as a structured tool call. One retry only; falls back to text promotion
+        // on the second occurrence so we never loop.
+        const xmlToolRetryMessage =
+          !promptError && !aborted && !yieldAborted ? getPendingXmlToolCallRetry() : null;
+        if (xmlToolRetryMessage) {
+          log.warn(
+            `[xml-tool-retry] re-prompting after thinking-only tool call runId=${params.runId} sessionId=${params.sessionId}`,
+          );
+          try {
+            await abortable(activeSession.prompt(xmlToolRetryMessage));
+          } catch (err) {
+            if (isRunnerAbortError(err)) {
+              if (!promptError) {
+                promptError = err as Error;
+                promptErrorSource = "prompt";
+              }
+            } else {
+              throw err;
+            }
           }
         }
 

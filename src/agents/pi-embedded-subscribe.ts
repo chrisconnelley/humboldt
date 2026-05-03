@@ -185,6 +185,8 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
     pendingAssistantReplyDirectives: undefined,
     deterministicApprovalPromptPending: false,
     deterministicApprovalPromptSent: false,
+    pendingXmlToolCallRetry: undefined,
+    xmlToolCallRetryCount: 0,
   };
   const usageTotals = {
     input: 0,
@@ -1106,6 +1108,11 @@ export function subscribeEmbeddedPiSession(params: SubscribeEmbeddedPiSessionPar
         messagingToolSentTargets,
       }),
     didSendDeterministicApprovalPrompt: () => state.deterministicApprovalPromptSent,
+    getPendingXmlToolCallRetry: (): string | null => {
+      const msg = state.pendingXmlToolCallRetry;
+      state.pendingXmlToolCallRetry = undefined;
+      return msg ?? null;
+    },
     getLastToolError: () => (state.lastToolError ? { ...state.lastToolError } : undefined),
     getUsageTotals,
     getCompactionCount: () => compactionCount,

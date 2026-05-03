@@ -16,6 +16,7 @@ import {
   type AssistantPhase,
 } from "../shared/chat-message-content.js";
 import { normalizeOptionalString } from "../shared/string-coerce.js";
+import { detectToolCallShapedText } from "../shared/text/tool-call-shaped-text.js";
 import {
   isMessagingToolDuplicateNormalized,
   normalizeTextForComparison,
@@ -769,6 +770,12 @@ export function handleMessageEnd(
   // in reasoning_content instead of content, leaving the reply empty. Promote
   // thinking to text so the reply isn't lost. Cloud providers (Anthropic/OpenAI)
   // use thinking for genuine internal reasoning — never promote for them.
+  //
+  // Special case: if the thinking contains a <tool_call> XML block but no
+  // structured tool call was emitted, schedule a re-prompt (Option A) so the
+  // model gets one chance to emit the tool call properly before we fall back
+  // to displaying the raw XML as text.
+  const MAX_XML_TOOL_RETRIES = 1;
   const stillEmpty = ctx.state.assistantTexts.length === ctx.state.assistantTextBaseline;
   if (stillEmpty && !finalAssistantText && ctx.params.provider) {
     const normalizedProvider = normalizeProviderId(ctx.params.provider);
@@ -779,8 +786,22 @@ export function handleMessageEnd(
     ) {
       const thinkingForPromotion = rawThinking || extractAssistantThinking(assistantMessage);
       if (thinkingForPromotion) {
-        ctx.state.assistantTexts.push(thinkingForPromotion);
-        ctx.state.assistantTextBaseline = ctx.state.assistantTexts.length;
+        const toolCallDetection = detectToolCallShapedText(thinkingForPromotion);
+        if (toolCallDetection && ctx.state.xmlToolCallRetryCount < MAX_XML_TOOL_RETRIES) {
+          ctx.state.xmlToolCallRetryCount += 1;
+          ctx.state.pendingXmlToolCallRetry =
+            "Your previous reasoning included a tool call that wasn't emitted as a structured " +
+            "tool call. Please call the tool now using the proper tool call format.";
+          ctx.log.warn("xml-tool-in-thinking: scheduling re-prompt instead of promoting to text", {
+            runId: ctx.params.runId,
+            pattern: toolCallDetection.kind,
+            ...(toolCallDetection.toolName ? { toolName: toolCallDetection.toolName } : {}),
+            retryCount: ctx.state.xmlToolCallRetryCount,
+          });
+        } else {
+          ctx.state.assistantTexts.push(thinkingForPromotion);
+          ctx.state.assistantTextBaseline = ctx.state.assistantTexts.length;
+        }
       }
     }
   }
