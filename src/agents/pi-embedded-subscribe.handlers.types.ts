@@ -115,6 +115,8 @@ export type EmbeddedPiSubscribeState = {
 
   // Option A: re-prompt when model emits <tool_call> XML inside thinking instead of as a structured call
   pendingXmlToolCallRetry?: string;
+  // Option B: synthetic execution — thinking text to parse and run when Option A also fails
+  pendingXmlToolCallThinking?: string;
   xmlToolCallRetryCount: number;
 };
 
