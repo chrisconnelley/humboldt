@@ -106,6 +106,10 @@ export type EmbeddedPiSubscribeState = {
   deterministicApprovalPromptPending: boolean;
   deterministicApprovalPromptSent: boolean;
   lastAssistant?: AgentMessage;
+
+  // Option A: re-prompt when model emits <tool_call> XML inside thinking instead of as a structured call
+  pendingXmlToolCallRetry?: string;
+  xmlToolCallRetryCount: number;
 };
 
 export type EmbeddedPiSubscribeContext = {
