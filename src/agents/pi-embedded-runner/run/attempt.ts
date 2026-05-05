@@ -82,6 +82,7 @@ import {
   resolveChannelReactionGuidance,
 } from "../../channel-tools.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../../defaults.js";
+import { resolveOpenClawReferencePaths } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
 import { resolveHeartbeatPromptForSystemPrompt } from "../../heartbeat-system-prompt.js";
 import { resolveImageSanitizationLimits } from "../../image-sanitization.js";
@@ -3105,7 +3106,6 @@ export async function runEmbeddedAttempt(
             },
           );
         }
-
 
         // Repair orphaned trailing user messages so new prompts don't violate role ordering.
         const leafEntry = isRawModelRun ? null : sessionManager.getLeafEntry();

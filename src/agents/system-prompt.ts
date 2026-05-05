@@ -806,6 +806,7 @@ export function buildAgentSystemPrompt(params: {
     toolLines.push(summary ? `- ${name}: ${summary}` : `- ${name}`);
   }
 
+  const hasGateway = availableTools.has("gateway");
   const readToolName = resolveToolName("read");
   const execToolName = resolveToolName("exec");
   const processToolName = resolveToolName("process");
