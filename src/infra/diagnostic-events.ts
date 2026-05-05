@@ -569,25 +569,6 @@ export type DiagnosticTelemetryExporterEvent = DiagnosticBaseEvent & {
   errorCategory?: string;
 };
 
-// Liveness warnings (upstream)
-export type DiagnosticLivenessWarningReason = "event_loop_delay" | "event_loop_utilization" | "cpu";
-
-export type DiagnosticLivenessWarningEvent = DiagnosticBaseEvent & {
-  type: "diagnostic.liveness.warning";
-  reasons: DiagnosticLivenessWarningReason[];
-  intervalMs: number;
-  eventLoopDelayP99Ms?: number;
-  eventLoopDelayMaxMs?: number;
-  eventLoopUtilization?: number;
-  cpuUserMs?: number;
-  cpuSystemMs?: number;
-  cpuTotalMs?: number;
-  cpuCoreRatio?: number;
-  active: number;
-  waiting: number;
-  queued: number;
-};
-
 // Empty reply tracking (fork)
 export type DiagnosticEmptyReplyEvent = DiagnosticBaseEvent & {
   type: "agent.empty_reply";
