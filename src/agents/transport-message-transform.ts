@@ -52,68 +52,66 @@ export function transformTransportMessages(
     ? "aborted"
     : "No result provided";
   const toolCallIdMap = new Map<string, string>();
-  const transformed = messages.map((msg) => {
-    if (msg.role === "user") {
-      return msg;
-    }
-    if (msg.role === "toolResult") {
-      const normalizedId = toolCallIdMap.get(msg.toolCallId);
-      return normalizedId && normalizedId !== msg.toolCallId
-        ? { ...msg, toolCallId: normalizedId }
-        : msg;
-    }
-    if (msg.role !== "assistant") {
-      return msg;
-    }
-    const isSameModel =
-      msg.provider === model.provider && msg.api === model.api && msg.model === model.id;
-    const content: typeof msg.content = [];
-    for (const block of msg.content) {
-      if (block.type === "thinking") {
-        if (block.redacted) {
-          if (isSameModel) {
-            content.push(block);
+  const transformed = messages
+    .filter((msg) => (msg.role as string) !== "compactionSummary")
+    .map((msg) => {
+      if (msg.role === "user") {
+        return msg;
+      }
+      if (msg.role === "toolResult") {
+        const normalizedId = toolCallIdMap.get(msg.toolCallId);
+        return normalizedId && normalizedId !== msg.toolCallId
+          ? { ...msg, toolCallId: normalizedId }
+          : msg;
+      }
+      if (msg.role !== "assistant") {
+        return msg;
+      }
+      const isSameModel =
+        msg.provider === model.provider && msg.api === model.api && msg.model === model.id;
+      const content: typeof msg.content = [];
+      for (const block of msg.content) {
+        if (block.type === "thinking") {
+          if (block.redacted) {
+            if (isSameModel) {
+              content.push(block);
+            }
+            continue;
           }
+          if (isSameModel && block.thinkingSignature) {
+            content.push(block);
+            continue;
+          }
+          if (!block.thinking.trim()) {
+            continue;
+          }
+          content.push(isSameModel ? block : { type: "text", text: block.thinking });
           continue;
         }
-        if (isSameModel && block.thinkingSignature) {
+        if (block.type === "text") {
+          content.push(isSameModel ? block : { type: "text", text: block.text });
+          continue;
+        }
+        if (block.type !== "toolCall") {
           content.push(block);
           continue;
         }
-        if (!block.thinking.trim()) {
-          continue;
+        let normalizedToolCall = block;
+        if (!isSameModel && block.thoughtSignature) {
+          normalizedToolCall = { ...normalizedToolCall };
+          delete normalizedToolCall.thoughtSignature;
         }
-        content.push(isSameModel ? block : { type: "text", text: block.thinking });
-        continue;
-      }
-      if (block.type === "text") {
-        content.push(isSameModel ? block : { type: "text", text: block.text });
-        continue;
-      }
-      if (block.type !== "toolCall") {
-        content.push(block);
-        continue;
-      }
-      let normalizedToolCall = block;
-      if (
-        !isSameModel &&
-        block.thoughtSignature &&
-        options?.preserveCrossModelToolCallThoughtSignature !== true
-      ) {
-        normalizedToolCall = { ...normalizedToolCall };
-        delete normalizedToolCall.thoughtSignature;
-      }
-      if (!isSameModel && normalizeToolCallId) {
-        const normalizedId = normalizeToolCallId(block.id, model, msg);
-        if (normalizedId !== block.id) {
-          toolCallIdMap.set(block.id, normalizedId);
-          normalizedToolCall = { ...normalizedToolCall, id: normalizedId };
+        if (!isSameModel && normalizeToolCallId) {
+          const normalizedId = normalizeToolCallId(block.id, model, msg);
+          if (normalizedId !== block.id) {
+            toolCallIdMap.set(block.id, normalizedId);
+            normalizedToolCall = { ...normalizedToolCall, id: normalizedId };
+          }
         }
+        content.push(normalizedToolCall);
       }
-      content.push(normalizedToolCall);
-    }
-    return { ...msg, content };
-  });
+      return { ...msg, content };
+    });
   // Preserve the old transport replay filter: failed streamed turns can contain
   // partial text, partial tool calls, or both, and strict providers can treat
   // them as valid assistant context on retry unless we drop the whole turn.
